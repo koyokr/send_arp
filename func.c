@@ -21,15 +21,14 @@ void get_my_ip_mac(const u_char *interface, in_addr_t *my_ip, uint8_t *my_mac) {
 }
 
 #define CMD_BUF_SIZE 128
-#define LINE_BUF_SIZE 16
 void get_gateway_ip(const u_char *interface, in_addr_t *gateway_ip) {
 	u_char cmd[CMD_BUF_SIZE] = { 0 };
-	u_char line[LINE_BUF_SIZE] = { 0 };
+	u_char line[IP_ADDR_STR_SIZE] = { 0 };
 
 	sprintf(cmd, "route -n |grep %s |grep 'UG[ \t]' |awk '{print $2}'", interface);
 	FILE* fp = popen(cmd, "r");
 
-	if(fgets(line, LINE_BUF_SIZE, fp) != NULL) {
+	if(fgets(line, IP_ADDR_STR_SIZE, fp) != NULL) {
 		line[strlen(line) - 1] = '\0';
 		inet_pton(AF_INET, line, gateway_ip);
 	}

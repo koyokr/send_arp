@@ -15,6 +15,8 @@
 #define IP_ADDR_LEN    0x4
 #define ETHER_ADDR_LEN 0x6
 
+#define IP_ADDR_STR_SIZE 16
+
 struct eth_hdr {
 	// 14 bytes
     uint8_t  eth_dhost[ETHER_ADDR_LEN]; // destination ethernet address
