@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	printf("Enter the interface number (1-%d):", i);
+	printf("Enter the interface number (1-%d): ", i);
 	scanf("%d", &inum);
 	if (inum < 1 || inum > i) {
 		perror("\nInterface number out of range.\n");
@@ -45,38 +45,58 @@ int main(int argc, char *argv[]) {
 	// Jump to the selected adapter
 	for(d=alldevs, i=0; i< inum-1 ;d=d->next, i++);
 
-	/* Open the output device */
+	// Open the output device
 	fp = pcap_open_live(d->name, 65536, 0, 1000, errbuf);
 	if (fp == NULL) {
 		perror(errbuf);
 		exit(1);
 	}
+	
+	
+	// Declare Interface
+	u_char *interface = NULL;
+	interface = (u_char *)malloc(strlen(d->name));
+	memcpy(interface, d->name, strlen(d->name));
+	// Free the device list
+	pcap_freealldevs(alldevs);
+	
+	// Declare IP, MAC necessary 
+	struct data_ip_mac data;
+	// Declare IP String Buffer
+	u_char ip_addr_buf[16];
+	
+	// Get my ip, my mac
+	get_my_ip_mac(interface, &data.my_ip.s_addr, data.my_mac);
+	
+	puts("");
+	inet_ntop(AF_INET, &data.my_ip.s_addr, ip_addr_buf, sizeof(ip_addr_buf));
+	printf(" my ip:      %s\n", ip_addr_buf);
+	printf(" my mac:     %02x:%02x:%02x:%02x:%02x:%02x\n", data.my_mac[0], data.my_mac[1], data.my_mac[2], data.my_mac[3], data.my_mac[4], data.my_mac[5]);
+	
+	// Get gateway ip, victim ip
+	get_gateway_ip(interface, &data.gateway_ip.s_addr);
+	inet_pton(AF_INET, argv[1], &data.victim_ip.s_addr);
+	
+	inet_ntop(AF_INET, &data.gateway_ip.s_addr, ip_addr_buf, sizeof(ip_addr_buf));
+	printf(" gateway ip: %s\n", ip_addr_buf);
+	inet_ntop(AF_INET, &data.victim_ip.s_addr, ip_addr_buf, sizeof(ip_addr_buf));
+	printf(" victim ip:  %s\n", ip_addr_buf);
+	puts("");
 
-	u_char s_ip[4], s_mac[ETHER_ADDR_LEN];
-
-	get_my_address(d->name, s_ip, s_mac);
-	printf("%d.%d.%d.%d\n", s_ip[0], s_ip[1], s_ip[2], s_ip[3]);
-	printf("%02x:%02x:%02x:%02x:%02x:%02x\n", s_mac[0], s_mac[1], s_mac[2], s_mac[3], s_mac[4], s_mac[5]);
-	// 공유기 IP 알아내는 방법만 알면 됨
-
-	u_char packet[LIBNET_ETH_H + LIBNET_ARP_ETH_IP_H];
-	struct libnet_ethernet_hdr *eth = (struct libnet_ethernet_hdr *)packet;
-	struct libnet_arp_eth_hdr *arp = (struct libnet_arp_eth_hdr *)packet + LIBNET_ETH_H;
+	// Declare ARP packet: 42bytes + 혹시 모르니까 임시로 100바이트 추가 + get_your_mac 함수도 똑같이 선언
+	u_char packet[ETH_ARP_H + 100];
+	struct eth_arp_hdr *pkt = (struct eth_arp_hdr *)packet;
+	
 	// 피해자 ip 주소와, 내 ip, mac 주소를 알면 arp 방송 때려서 mac 주소를 얻자
 	
-	/* Fill the rest of the packet */
-	for (int i = 12; i<100; i++) {
-		packet[i] = i % 256;
-	}
-
+ 	
 	/* Send down the packet */
-	if (pcap_sendpacket(fp, packet, 100 /* size */) != 0) {
+	if (pcap_sendpacket(fp, packet, ETH_ARP_H) != 0) {
 		perror(pcap_geterr(fp));
 		exit(1);
 	}
 	
-	// Free the device list
-	pcap_freealldevs(alldevs);
+	
 	return 0;
 }
 

@@ -6,4 +6,5 @@
 
 4. 감염 arp reply 패킷을 victim과 gateway에 전송
 
-5. arp request 패킷을 날려서 감염이 됐는지 확
+5. arp request 패킷을 날려서 감염이 됐는지 확인
+
