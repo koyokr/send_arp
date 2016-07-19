@@ -7,13 +7,12 @@ int main(int argc, char *argv[]) {
 	int i = 0;
 	pcap_t *fp;
 	char errbuf[PCAP_ERRBUF_SIZE];
-
-	/* Check the validity of the command line */
+	
+	// Check the validity of the command line
 	if (argc != 2) {
 		printf("Usage: %s <victim IP>\n", argv[0]);
 		exit(1);
 	}
-
 	// Retrieve the device list on the local machine
 	if (pcap_findalldevs(&alldevs, errbuf) == -1) {
 		perror(errbuf);
@@ -45,6 +44,8 @@ int main(int argc, char *argv[]) {
 	// Jump to the selected adapter
 	for(d=alldevs, i=0; i< inum-1 ;d=d->next, i++);
 
+
+
 	// Open the output device
 	fp = pcap_open_live(d->name, 65536, 0, 1000, errbuf);
 	if (fp == NULL) {
@@ -52,25 +53,25 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 	
-	
 	// Declare Interface
 	u_char *interface = (u_char *)malloc(strlen(d->name));
 	memcpy(interface, d->name, strlen(d->name));
+	
 	// Free the device list
 	pcap_freealldevs(alldevs);
 	
 	// Declare IP, MAC necessary
 	// Declare IP String Buffer
-	struct data_ip_mac data;
+	struct data_ip_host data;
 	u_char ip_addr_str[IP_ADDR_STR_SIZE];
 	
 	// Get my ip, my mac
-	get_my_ip_mac(interface, &data.my_ip.s_addr, data.my_mac);
+	get_my_ip_host(interface, &data.my_ip.s_addr, data.my_host);
 	
 	puts("");
 	inet_ntop(AF_INET, &data.my_ip.s_addr, ip_addr_str, IP_ADDR_STR_SIZE);
 	printf(" my ip:      %s\n", ip_addr_str);
-	printf(" my mac:     %02x:%02x:%02x:%02x:%02x:%02x\n", data.my_mac[0], data.my_mac[1], data.my_mac[2], data.my_mac[3], data.my_mac[4], data.my_mac[5]);
+	printf(" my mac:     %02x:%02x:%02x:%02x:%02x:%02x\n", data.my_host[0], data.my_host[1], data.my_host[2], data.my_host[3], data.my_host[4], data.my_host[5]);
 	
 	// Get gateway ip, victim ip
 	get_gateway_ip(interface, &data.gateway_ip.s_addr);
@@ -82,9 +83,20 @@ int main(int argc, char *argv[]) {
 	printf(" victim ip:  %s\n", ip_addr_str);
 	puts("");
 
-	// Declare ARP packet: 42bytes + 혹시 모르니까 임시로 100바이트 추가 + get_your_mac 함수도 똑같이 선언
-	u_char packet[ETH_ARP_H + 100];
-	struct eth_arp_hdr *pkt = (struct eth_arp_hdr *)packet;
+	// Declare ARP packet: 42bytess
+	u_char packet[ETH_ARP_H];
+	struct eth_arp_hdr pkt;
+	pkt._eth = (struct eth_hdr *)packet;
+	pkt._arp = (struct arp_hdr *)(packet + ETH_H);
+	
+	// Initialize packet
+	init_arp_packet(&pkt, &data);
+	// Set packet
+	set_arp_packet(&pkt, &data.victim_ip.s_addr, NULL, ARPOP_REQUEST);
+	// Send packet
+	send_arp_packet(fp, packet);
+	
+	// padding 여부는 패킷 길이로 확인
 	
 	// 피해자 mac주소 확인: Broadcast에 arp request 보내기 --> 1초 응답 대기 --> 안오면 또 보내기 --> 반복
 	// 피해자 감염: 피해자에게 arp reply 패킷 때리기 --> 1초 간격 반복 --> arp request로 감염 확
@@ -94,7 +106,7 @@ int main(int argc, char *argv[]) {
 		perror(pcap_geterr(fp));
 		exit(1);
 	}
-	 */
+	*/
 	 
 	return 0;
 }
