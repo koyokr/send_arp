@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 	printf("\n");
 
 	// Declare interface, data
-	uint8_t *interface = (uint8_t *)malloc(strlen(d->name));
+	uint8_t interface[IFNAMSIZ] = { 0 };
 	memcpy(interface, d->name, strlen(d->name));
 	pcap_freealldevs(alldevs);
 	struct data_ip_host data;

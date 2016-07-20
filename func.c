@@ -2,22 +2,28 @@
 
 // 사용자의 ip와 mac 주소를 얻어옵니다.
 void get_my_ip_host(const uint8_t *interface, struct in_addr *my_ip, uint8_t *my_host) {
-	struct ifreq s;
-	int32_t fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+	struct ifreq ifr;
+	int32_t fd;
 
-	strcpy(s.ifr_name, interface);
-	if (ioctl(fd, SIOCGIFADDR, &s) == -1) {
-		perror("\nFinding my IP fail.\n");
+	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+	if(fd < 0) {
+		perror( "\nsocket() error\n" );
 		exit(1);
 	}
 
-	memcpy(&my_ip->s_addr, s.ifr_addr.sa_data + (ETHER_ADDR_LEN-IP_ADDR_LEN), IP_ADDR_LEN);
+	memcpy(ifr.ifr_name, interface, IFNAMSIZ);
+	if (ioctl(fd, SIOCGIFADDR, &ifr) == -1) {
+		perror("\nioctl() error. finding my ip fail.\n");
+		exit(1);
+	}
 
-	if (ioctl(fd, SIOCGIFHWADDR, &s) == -1) {
+	memcpy(&my_ip->s_addr, ifr.ifr_addr.sa_data + (ETHER_ADDR_LEN-IP_ADDR_LEN), IP_ADDR_LEN);
+
+	if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
 		perror("\nFinding my MAC fail.\n");
 		exit(1);
 	}
-	memcpy(my_host, s.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
+	memcpy(my_host, ifr.ifr_hwaddr.sa_data, ETHER_ADDR_LEN);
 }
 
 // route -n 명령어에서 gateway ip를 얻습니다.
